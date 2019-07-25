@@ -145,6 +145,7 @@ class CCTVSetDomainActivity(
         super.setupView()
         Realm.init(this)
         realm = Realm.getDefaultInstance()  //realm 데이터 받기.
+        var i = Intent(applicationContext, CCTVDetailActivity::class.java)
 
         var iv = findViewById<View>(R.id.bg_view) as ImageView  //xml의 배경이미지 화면을 iv로 받아옴.
         val vto = iv.getViewTreeObserver()
@@ -152,6 +153,7 @@ class CCTVSetDomainActivity(
         //뷰가 만들어지고 실행하도록 변경
         vto.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
             override fun onGlobalLayout() {
+
                 val arr = intent.getByteArrayExtra("image")
                 val bm = BitmapFactory.decodeByteArray(arr, 0, arr.size)
                 val infoCCTV = intent.getParcelableExtra<CCTV>("cctv") // CCTVDetailActivity 에서 보낸 객체 받아옴 (CCTV 장소)
@@ -170,6 +172,8 @@ class CCTVSetDomainActivity(
 
                     realm.close()
                     finish()
+                    startActivity(i)
+
                 }
                 //확인 버튼.
                 confirmButton.setOnClickListener {
@@ -266,6 +270,8 @@ class CCTVSetDomainActivity(
                     //액티비티 종료
                     realm.close()
                     finish()
+                    startActivity(i)
+
                 }
 
                 mPaint.setColor(Color.BLUE)
