@@ -46,9 +46,22 @@ class CCTVDetailActivity(
     override fun setupView() {
         super.setupView()
         Realm.init(this)
-        val infoCCTV = intent.getParcelableExtra<CCTV>("cctv")
+        val infoCCTV : CCTV
+
+        if (intent.hasExtra("cctv")){
+            infoCCTV = intent.getParcelableExtra<CCTV>("cctv")
+        }else{
+            infoCCTV = CCTV(1, "현관")
+        }
+
+        var detected_info = ""
+        if (intent.hasExtra("Detected_Event") && intent.getStringExtra("Detected_Event").equals("")){
+            detected_info = intent.getStringExtra("Detected_Event")
+        }
+        detectedInfoTextView.setText(detected_info)
+
         realm = Realm.getDefaultInstance()
-        val viewItem =realm.where<CCTVRealmStruct>(CCTVRealmStruct::class.java).equalTo("Location",infoCCTV.name)?.findFirst()
+        var viewItem =realm.where<CCTVRealmStruct>(CCTVRealmStruct::class.java).equalTo("Location",infoCCTV.name)?.findFirst()
         Toast.makeText(this,viewItem.toString(), Toast.LENGTH_LONG).show()
 
         val iv = findViewById(R.id.video_view) as ImageView
@@ -72,32 +85,10 @@ class CCTVDetailActivity(
 //                                Log.d("myapp", "kkk: " + iv.width)
 //                                Log.d("myapp", "kkk : "+ iv.height)
 
-                                //화면크기
-                                val display = windowManager.defaultDisplay
-                                val displayWidth = display.width
-                                val displayHeight = display.height
-
                                 val width = 700 // 축소시킬 너비
                                 val height = 525 // 축소시킬 높이
-                                var bmpWidth = bm.width.toFloat()
-                                var bmpHeight = bm.height.toFloat()
 
-                                if (bmpWidth > width) {
-                                    // 원하는 너비보다 클 경우의 설정
-                                    val mWidth = bmpWidth / 100
-                                    val scale = width / mWidth
-                                    bmpWidth *= scale / 100
-                                    bmpHeight *= scale / 100
-                                } else if (bmpHeight > height) {
-                                    // 원하는 높이보다 클 경우의 설정
-                                    val mHeight = bmpHeight / 100
-                                    val scale = height / mHeight
-                                    bmpWidth *= scale / 100
-                                    bmpHeight *= scale / 100
-                                }
-
-
-                                val resized = Bitmap.createScaledBitmap(bm, video_view.right, video_view.bottom, true)
+                                val resized = Bitmap.createScaledBitmap(bm, iv.width, iv.height, true)
                                 val resized2 = Bitmap.createScaledBitmap(bm, width, height, true)
 
                                 giving_image = resized2

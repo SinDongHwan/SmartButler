@@ -1,8 +1,6 @@
 package com.kau.smartbutler.view.main.home.child.cctv
 
 import android.annotation.SuppressLint
-import android.app.AlertDialog
-import android.content.Context
 import android.content.Intent
 import android.graphics.*
 import android.graphics.drawable.LayerDrawable
@@ -16,6 +14,10 @@ import android.widget.Toast
 import com.kau.smartbutler.R
 import com.kau.smartbutler.base.BaseActivity
 import com.kau.smartbutler.model.CCTV
+import com.kau.smartbutler.model.PostDetectionAreaRequest
+import com.kau.smartbutler.util.network.getCCTVNetworkInstance
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.schedulers.Schedulers
 import io.realm.Realm
 import io.realm.kotlin.createObject
 import io.realm.kotlin.where
@@ -43,7 +45,7 @@ class CCTVSetDomainActivity(
     internal var vx = ArrayList<Float>()
     //좌표의 저장 여부 ( 1 받음 0 안받음 )
     internal var input_flag = 1
-    internal var ctx: Context = this
+
     lateinit var realm: Realm   //realm 초기화
     internal var sObject = JSONObject()     //json 초기화
     internal var coordinates = java.util.ArrayList<java.util.ArrayList<*>>()    //모든 좌표 저장
@@ -165,108 +167,107 @@ class CCTVSetDomainActivity(
                     Companion.vy.clear()
                     Companion.relative_vx.clear()
                     Companion.relative_vy.clear()
+
+                    realm.close()
                     finish()
                 }
                 //확인 버튼.
                 confirmButton.setOnClickListener {
-                    if (input_flag == 1) {
-                        val alert = AlertDialog.Builder(ctx)
-                        alert.setMessage("처음과 끝점을 이어주세요.")
-                                .setTitle(R.string.app_name)
-                                .setPositiveButton("OK", null)
-                                .setIcon(R.drawable.btn_tab_butler_selected)
-                        alert.create().show()
-                    } else if (input_flag == 0) {
-                        convert_pointlist()     //모든 좌표를 저장하여 coordinate에 담아주는 함수.
-                        realm.beginTransaction()    // 온전한 데이터 저장을 위한 트랙잭션 On
-                        // 현재 장소의 데이터를 가져옴
-                        val updateItem = realm.where<CCTVRealmStruct>(CCTVRealmStruct::class.java).equalTo("Location", infoCCTV.name)?.findFirst()
+                    convert_pointlist()     //모든 좌표를 저장하여 coordinate에 담아주는 함수.
+                    realm.beginTransaction()    // 온전한 데이터 저장을 위한 트랙잭션 On
+                    // 현재 장소의 데이터를 가져옴
+                    val updateItem = realm.where<CCTVRealmStruct>(CCTVRealmStruct::class.java).equalTo("Location", infoCCTV.name)?.findFirst()
 
-                        // 해당장소에 대한 데이터가 없으면 좌표 추가(최초 1번만 시행) , Json 메시지 생성
-                        if (updateItem == null) {
-                            //고유 키id 설정(1부터 1씩 증가)
-                            val currentId = realm.where<CCTVRealmStruct>(CCTVRealmStruct::class.java).max("id")
-                            val nextId = if (currentId == null) 1 else currentId.toInt() + 1
-                            val newObject = realm.createObject<CCTVRealmStruct>(nextId)
+                    // 해당장소에 대한 데이터가 없으면 좌표 추가(최초 1번만 시행) , Json 메시지 생성
+                    if (updateItem == null) {
+                        //고유 키id 설정(1부터 1씩 증가)
+                        val currentId = realm.where<CCTVRealmStruct>(CCTVRealmStruct::class.java).max("id")
+                        val nextId = if (currentId == null) 1 else currentId.toInt() + 1
+                        val newObject = realm.createObject<CCTVRealmStruct>(nextId)
 
-                            //realm에 상대좌표 등록
-                            if (stateButton1.isChecked) newObject.Intrusion = relative_coordinates.toString()
-                            else newObject.Intrusion = "[]"
+                        //realm에 상대좌표 등록
+                        if (stateButton1.isChecked) newObject.Intrusion = relative_coordinates.toString()
+                        else newObject.Intrusion = "[]"
 
-                            if (stateButton2.isChecked) newObject.Loitering = relative_coordinates.toString()
-                            else newObject.Loitering = "[]"
+                        if (stateButton2.isChecked) newObject.Loitering = relative_coordinates.toString()
+                        else newObject.Loitering = "[]"
 
-                            if (stateButton3.isChecked) newObject.Abandon = relative_coordinates.toString()
-                            else newObject.Abandon = "[]"
+                        if (stateButton3.isChecked) newObject.Abandon = relative_coordinates.toString()
+                        else newObject.Abandon = "[]"
 
-                            if (stateButton4.isChecked) newObject.Falldown = relative_coordinates_full.toString()
-                            else newObject.Falldown = "[]"
+                        if (stateButton4.isChecked) newObject.Falldown = relative_coordinates_full.toString()
+                        else newObject.Falldown = "[]"
 
-                            //Json 메시지 생성
-                            sObject.put("Intrusion", newObject.Intrusion)
-                            sObject.put("Loitering", newObject.Loitering)
-                            sObject.put("Abandon", newObject.Abandon)
-                            sObject.put("Falldown", newObject.Falldown)
+                        //Json 메시지 생성
+                        sObject.put("Intrusion", newObject.Intrusion)
+                        sObject.put("Loitering", newObject.Loitering)
+                        sObject.put("Abandon", newObject.Abandon)
+                        sObject.put("Falldown", newObject.Falldown)
 
-                            //realm에 장소 등록
-                            newObject.Location = infoCCTV?.name
+                        //realm에 장소 등록
+                        newObject.Location = infoCCTV?.name
 
 
-                        }
-                        //해당 장소가 realm에 있을 경우 해당 장소에 대한 좌표 업데이트, Json 메시지 생성.
-                        else if (infoCCTV?.name == updateItem.Location.toString()) {
-                            updateItem.Location = infoCCTV.name
-
-                            if (stateButton1.isChecked) {
-                                updateItem.Intrusion = relative_coordinates.toString()
-                            } else {
-                                updateItem.Intrusion = "[]"
-                                sObject.remove("Intrusion")
-                            }
-                            sObject.put("Intrusion", updateItem?.Intrusion)
-
-                            if (stateButton2.isChecked) {
-                                updateItem.Loitering = relative_coordinates.toString()
-                            } else {
-                                updateItem.Loitering = "[]"
-                                sObject.remove("Loitering")
-                            }
-                            sObject.put("Loitering", updateItem?.Loitering)
-
-                            if (stateButton3.isChecked) {
-                                updateItem.Abandon = relative_coordinates.toString()
-                            } else {
-                                updateItem.Abandon = "[]"
-                                sObject.remove("Abandon")
-                            }
-                            sObject.put("Abandon", updateItem?.Abandon)
-
-                            if (stateButton4.isChecked) {
-                                updateItem.Falldown = relative_coordinates_full.toString()
-                            } else {
-                                updateItem.Falldown = "[]"
-                                sObject.remove("Falldown")
-                            }
-                            sObject.put("Falldown", updateItem?.Falldown)
-
-                        }
-
-                        val viewItem = realm.where<CCTVRealmStruct>(CCTVRealmStruct::class.java).equalTo("Location", infoCCTV.name)?.findFirst() //쿼리문
-                        Log.d(sObject.toString(), "- JsonMessage -")
-
-                        realm.commitTransaction()       //위에서 변경한 데이터 커밋
-
-                        //좌표 초기화
-                        Companion.vx.clear()
-                        Companion.vy.clear()
-                        Companion.relative_vx.clear()
-                        Companion.relative_vy.clear()
-
-                        //액티비티 종료
-                        realm.close()
-                        finish()
                     }
+                    //해당 장소가 realm에 있을 경우 해당 장소에 대한 좌표 업데이트, Json 메시지 생성.
+                    else if (infoCCTV?.name == updateItem.Location.toString()) {
+                        updateItem.Location = infoCCTV.name
+
+                        if (stateButton1.isChecked) {
+                            updateItem.Intrusion = relative_coordinates.toString()
+                        } else {
+                            updateItem.Intrusion = "[]"
+                            sObject.remove("Intrusion")
+                        }
+                        sObject.put("Intrusion", updateItem?.Intrusion)
+
+                        if (stateButton2.isChecked) {
+                            updateItem.Loitering = relative_coordinates.toString()
+                        }
+                        else {
+                            updateItem.Loitering = "[]"
+                            sObject.remove("Loitering")
+                        }
+                        sObject.put("Loitering", updateItem?.Loitering)
+
+                        if (stateButton3.isChecked) {
+                            updateItem.Abandon = relative_coordinates.toString()
+                        }
+                        else {
+                            updateItem.Abandon = "[]"
+                            sObject.remove("Abandon")
+                        }
+                        sObject.put("Abandon", updateItem?.Abandon)
+
+                        if (stateButton4.isChecked) {
+                            updateItem.Falldown = relative_coordinates_full.toString()
+                        }
+                        else {
+                            updateItem.Falldown = "[]"
+                            sObject.remove("Falldown")
+                        }
+                        sObject.put("Falldown", updateItem?.Falldown)
+
+                    }
+
+                    val viewItem = realm.where<CCTVRealmStruct>(CCTVRealmStruct::class.java).equalTo("Location", infoCCTV.name)?.findFirst() //쿼리문
+                    Log.d(sObject.toString(), "- JsonMessage -")
+
+                    realm.commitTransaction()       //위에서 변경한 데이터 커밋
+
+                    //좌표 초기화
+                    Companion.vx.clear()
+                    Companion.vy.clear()
+                    Companion.relative_vx.clear()
+                    Companion.relative_vy.clear()
+
+                    postArea()
+
+                    //액티비티 종료
+                    realm.close()
+                    finish()
                 }
+
                 mPaint.setColor(Color.BLUE)
                 mPaint.setStrokeWidth(10F)
                 mPaint.setStyle(Paint.Style.STROKE)
@@ -303,6 +304,20 @@ class CCTVSetDomainActivity(
             }
         })
 
+    }
+
+    fun postArea() {
+        //네트워크 Examples
+        getCCTVNetworkInstance()
+                .postDetectionArea(PostDetectionAreaRequest(sObject.getString("Intrusion"), sObject.getString("Loitering"), sObject.getString("Abandon"), sObject.getString("Falldown")))
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe ({
+                    Log.d("tagg result ", it.toString())
+                },
+                        {
+                            error->
+                        })
     }
 
     //좌표들을 coordanates에 저장하는 함수
