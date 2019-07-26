@@ -67,10 +67,12 @@ class CCTVDetailActivity(
 
         realm = Realm.getDefaultInstance()
         var viewItem =realm.where<CCTVRealmStruct>(CCTVRealmStruct::class.java).equalTo("Location",infoCCTV.name)?.findFirst()
-        Toast.makeText(this,viewItem.toString(), Toast.LENGTH_LONG).show()
-        var is_area = false
 
-        is_area = getArea(viewItem)
+        var is_area = false
+        if (viewItem != null){
+            is_area = getArea(viewItem)
+        }
+        Toast.makeText(this,viewItem.toString(), Toast.LENGTH_LONG).show()
 
         val iv = findViewById(R.id.video_view) as ImageView
         val vto = iv.getViewTreeObserver()
