@@ -201,4 +201,8 @@ class CCTVDetailActivity(
         canvas.drawLine(drawX, drawY, coordinates[coordinates.size-1][0]*imagewidth, coordinates[coordinates.size-1][1]*imageheight, mPaint) //최종좌표와 시작점 선긋기
     }
 
+    override fun onBackPressed() {
+        finish()
+        super.onBackPressed()
+    }
 }
