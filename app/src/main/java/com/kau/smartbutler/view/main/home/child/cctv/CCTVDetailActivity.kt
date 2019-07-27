@@ -4,23 +4,20 @@ import android.content.Intent
 import android.graphics.*
 import android.os.Handler
 import android.util.Log
-import android.view.View
+
 import android.view.ViewTreeObserver
-import android.widget.Button
-import android.widget.ImageView
+
 import android.widget.Toast
 import com.google.gson.JsonObject
 import com.kau.smartbutler.R
 import com.kau.smartbutler.base.BaseActivity
 import com.kau.smartbutler.model.CCTV
-import com.kau.smartbutler.model.PostDetectionAreaRequest
-import com.kau.smartbutler.util.network.getCCTVNetworkInstance
-import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.schedulers.Schedulers
 import io.realm.Realm
 import io.realm.com_kau_smartbutler_view_main_home_child_cctv_CCTVRealmStructRealmProxy
 import kotlinx.android.synthetic.main.activity_cctv_detail.*
 import java.io.ByteArrayOutputStream
+
+import java.net.ProtocolException
 import java.net.URL
 import java.util.*
 
@@ -34,15 +31,11 @@ class CCTVDetailActivity(
     internal var handler = Handler()
     internal var OffActivity = false
 
-    internal var width = 300 // 축소시킬 너비
-    internal var height = 300 // 축소시킬 높이
     lateinit var realm: Realm
     internal var conf: Bitmap.Config = Bitmap.Config.ARGB_8888
-    internal var giving_image = Bitmap.createBitmap(width, height, conf)
-////////////////////////////////////////////////////////////////////////////////////////////////////
+    internal var giving_image = Bitmap.createBitmap(300, 300, conf)
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
     internal var coordinates = ArrayList<ArrayList<Float>>()
-    internal var imagewidth = 0
-    internal var imageheight = 0
     var canvas = Canvas()
     var mPaint = Paint()
 
@@ -60,7 +53,7 @@ class CCTVDetailActivity(
         }
 
         var detected_info = ""
-        if (intent.hasExtra("Detected_Event") && intent.getStringExtra("Detected_Event").equals("")){
+        if (intent.hasExtra("Detected_Event") && ! intent.getStringExtra("Detected_Event").equals("")){
             detected_info = intent.getStringExtra("Detected_Event")
         }
         detectedInfoTextView.setText(detected_info)
@@ -73,64 +66,58 @@ class CCTVDetailActivity(
             is_area = getArea(viewItem)
         }
         Toast.makeText(this,viewItem.toString(), Toast.LENGTH_LONG).show()
+        realm.close()
+        video_view.setLayerType(video_view.layerType, null)
 
-        val iv = findViewById(R.id.video_view) as ImageView
-        val vto = iv.getViewTreeObserver()
+        val vto = video_view.getViewTreeObserver()
         vto.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
             override fun onGlobalLayout() {
-                mPaint.setColor(Color.BLUE)
-                mPaint.setStrokeWidth(10F)
+                mPaint.setColor(Color.GREEN)
+                mPaint.setStrokeWidth(5F)
                 mPaint.setStyle(Paint.Style.STROKE)
                 mPaint.setAntiAlias(true)
                 mPaint.setDither(true)
 
-                imageheight = iv.height
-                imagewidth = iv.width
+                val url = URL("http://192.168.219.132:25001/cgi-bin/viewer/video.jpg?resolution=640x480")
 
-                val t = Thread(Runnable {
-                    try {
-                        val tt = object : TimerTask() {
-                            override fun run() {
-                                while (true) {
-                                    try {
-                                        if(isFinishing){
-                                            break
-                                        }
-                                        val url = URL("http://112.169.29.116:25001/cgi-bin/viewer/video.jpg?resolution=640x480")
-                                        val t_connection = url.openConnection()
-                                        t_connection.readTimeout = 10000
-                                        val input_stream = t_connection.getInputStream()
-                                        val bm = BitmapFactory.decodeStream(input_stream)
-                                        val resized = Bitmap.createScaledBitmap(bm, iv.width, iv.height, true)
-                                        val width = 700 // 축소시킬 너비
-                                        val height = 525 // 축소시킬 높이
-                                        val resized2 = Bitmap.createScaledBitmap(bm, width, height, true)
-
-                                        canvas.setBitmap(resized)
-
-                                        if (is_area){
-                                            onDraw(canvas)
-                                        }
-                                        giving_image = resized2
-                                        handler.post {
-                                            iv.setImageBitmap(resized)
-                                        }
-
-                                        iv.setImageBitmap(resized) //비트맵 객체로 보여주기
-                                        iv.invalidate()
-                                    } catch (e: Exception) {
-                                        Log.d("myapp", "Error : $e")
-                                    }
+                Thread(Runnable {
+                    run {
+                        while (true) {
+                            try {
+                                if (isFinishing) {
+                                    break
                                 }
+                                val t_connection = url.openConnection()
+//                                println("Content_Length : " + t_connection.contentLength)
+                                val input_stream = t_connection.getInputStream()
+                                Thread.sleep(30)
+                                val image_readBytes = input_stream.readBytes()
+//                                println("Image Length : " + image_readBytes.size)
+//                                val bm = BitmapFactory.decodeStream(input_stream)
+                                val bm = BitmapFactory.decodeByteArray(image_readBytes,0,image_readBytes.size)
+
+                                val resized = Bitmap.createScaledBitmap(bm, video_view.width, video_view.height, true)
+                                val width = 700 // 축소시킬 너비
+                                val height = 525 // 축소시킬 높이
+                                val resized2 = Bitmap.createScaledBitmap(bm, width, height, true)
+                                giving_image = resized2
+
+                                handler.postAtFrontOfQueue {
+                                    canvas.setBitmap(resized)
+                                    if (is_area) {
+                                        onDraw(canvas)
+                                    }
+                                    video_view.setImageBitmap(resized) //비트맵 객체로 보여주기
+                                }
+//                                bm.recycle()
+//                                iv.invalidate()
+                            }catch (e: ProtocolException)
+                            {
+                                Log.d("Error: ", e.toString())
                             }
                         }
-                        val timer = Timer()
-                        timer.schedule(tt, 0, 500)
-                    } catch (e: Exception) {
                     }
-                })
-                t.start()
-
+                }).start()
             }
         })
         moreNavButton.setOnClickListener {
@@ -144,7 +131,7 @@ class CCTVDetailActivity(
             i.putExtra("cctv", infoCCTV)
             OffActivity = true
 
-            realm.close()
+
             finish()
             startActivity(i)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -179,26 +166,21 @@ class CCTVDetailActivity(
     }
 
     internal fun onDraw(canvas :Canvas) {
-        mPaint.setColor(Color.GREEN)
-        mPaint.setStrokeWidth(5F)
-        mPaint.setStyle(Paint.Style.STROKE)
-        mPaint.setAntiAlias(true)
-        mPaint.setDither(true)
 
-        var drawX = (coordinates[0][0] * imagewidth)
-        var drawY = (coordinates[0][1] * imageheight)
+        var drawX = (coordinates[0][0] * video_view.width)
+        var drawY = (coordinates[0][1] * video_view.height)
         canvas.drawCircle(drawX, drawY, 10f, mPaint)
         for (i in 1 until coordinates.size) {
-            var predrawX = coordinates[i-1][0] * imagewidth
-            var predrawY = coordinates[i-1][1] * imageheight
-            var nowdrawX = coordinates[i][0] * imagewidth
-            var nowdrawY = coordinates[i][1] * imageheight
+            var predrawX = coordinates[i-1][0] * video_view.width
+            var predrawY = coordinates[i-1][1] * video_view.height
+            var nowdrawX = coordinates[i][0] * video_view.width
+            var nowdrawY = coordinates[i][1] * video_view.height
 
             canvas.drawCircle(nowdrawX, nowdrawY, 10f, mPaint)
             canvas.drawLine(nowdrawX, nowdrawY, predrawX, predrawY, mPaint)
 
         }
-        canvas.drawLine(drawX, drawY, coordinates[coordinates.size-1][0]*imagewidth, coordinates[coordinates.size-1][1]*imageheight, mPaint) //최종좌표와 시작점 선긋기
+        canvas.drawLine(drawX, drawY, coordinates[coordinates.size-1][0]*video_view.width, coordinates[coordinates.size-1][1]*video_view.height, mPaint) //최종좌표와 시작점 선긋기
     }
 
     override fun onBackPressed() {
